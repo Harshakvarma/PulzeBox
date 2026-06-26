@@ -1,23 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  BreathPhase,
-  DifficultyLevel,
-  BreathingState,
-  BreathingSettings,
+  type BreathPhase,
+  type DifficultyLevel,
+  type BreathingState,
+  type BreathingSettings,
   DIFFICULTY_LEVELS,
   BREATH_PHASES,
   PHASE_LABELS,
   PHASE_DESCRIPTIONS,
   PHASE_COLORS
 } from '../types/breathing';
-import { vibrate } from 'web-haptics';
-
-const PHASE_DURATIONS = {
-  inhale: 1,
-  hold: 1,
-  exhale: 1,
-  holdEnd: 1,
-};
+import { WebHaptics, defaultPatterns } from 'web-haptics';
 
 export function useBreathing() {
   const [state, setState] = useState<BreathingState>({
@@ -28,6 +21,7 @@ export function useBreathing() {
     isMuted: false,
     difficulty: 'beginner',
     completedCycles: 0,
+    totalSeconds: 0,
   });
 
   const [settings, setSettings] = useState<BreathingSettings>({
@@ -38,6 +32,7 @@ export function useBreathing() {
 
   const intervalRef = useRef<number | null>(null);
   const phaseStartTimeRef = useRef<number>(0);
+  const sessionStartTimeRef = useRef<number>(0);
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Initialize audio context
@@ -79,16 +74,15 @@ export function useBreathing() {
   const triggerVibration = useCallback((pattern: number[]) => {
     if (!settings.vibrationEnabled) return;
 
-    // Check if vibration is supported
-    if ('vibrate' in navigator) {
-      navigator.vibrate(pattern);
-    }
-
-    // Also try web-haptics library
+    // Use web-haptics library (handles native navigator.vibrate internally)
     try {
-      vibrate('medium');
+      const haptics = new WebHaptics();
+      haptics.trigger(pattern.length > 0 ? pattern : defaultPatterns.medium);
     } catch (e) {
-      // Ignore if web-haptics fails
+      // Fallback to native API if web-haptics fails
+      if ('vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
     }
   }, [settings.vibrationEnabled]);
 
@@ -113,6 +107,7 @@ export function useBreathing() {
     if (state.isRunning) return;
 
     const stepDuration = DIFFICULTY_LEVELS[settings.difficulty].stepDuration;
+    const now = Date.now();
 
     setState(prev => ({
       ...prev,
@@ -120,9 +115,11 @@ export function useBreathing() {
       currentPhase: 'inhale',
       phaseIndex: 0,
       timeRemaining: stepDuration,
+      totalSeconds: 0,
     }));
 
-    phaseStartTimeRef.current = Date.now();
+    phaseStartTimeRef.current = now;
+    sessionStartTimeRef.current = now;
 
     // Play initial inhale tone
     const inhaleFeedback = getPhaseFeedback('inhale');
@@ -156,6 +153,7 @@ export function useBreathing() {
       timeRemaining: DIFFICULTY_LEVELS[settings.difficulty].stepDuration,
       isRunning: false,
       completedCycles: 0,
+      totalSeconds: 0,
     }));
   }, [settings.difficulty]);
 
@@ -186,11 +184,10 @@ export function useBreathing() {
   useEffect(() => {
     if (!state.isRunning) return;
 
-    const stepDuration = DIFFICULTY_LEVELS[state.difficulty].stepDuration;
-
     intervalRef.current = window.setInterval(() => {
       setState(prev => {
         const newTimeRemaining = prev.timeRemaining - 1;
+        const newTotalSeconds = prev.totalSeconds + 1;
 
         if (newTimeRemaining <= 0) {
           // Phase complete, move to next phase
@@ -212,12 +209,14 @@ export function useBreathing() {
             phaseIndex: nextPhaseIndex,
             timeRemaining: nextStepDuration,
             completedCycles: newCompletedCycles,
+            totalSeconds: newTotalSeconds,
           };
         }
 
         return {
           ...prev,
           timeRemaining: newTimeRemaining,
+          totalSeconds: newTotalSeconds,
         };
       });
     }, 1000);
@@ -247,6 +246,7 @@ export function useBreathing() {
     isMuted: state.isMuted,
     difficulty: state.difficulty,
     completedCycles: state.completedCycles,
+    totalSeconds: state.totalSeconds,
     phaseProgress,
     cycleProgress,
     stepDuration: DIFFICULTY_LEVELS[state.difficulty].stepDuration,

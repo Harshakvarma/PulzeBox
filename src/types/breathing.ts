@@ -61,6 +61,7 @@ export interface BreathingState {
   isMuted: boolean;
   difficulty: DifficultyLevel;
   completedCycles: number;
+  totalSeconds: number;
 }
 
 export interface BreathingSettings {

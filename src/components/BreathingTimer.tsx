@@ -1,16 +1,15 @@
 import { useBreathing } from '../hooks/useBreathing';
-import { BreathPhase } from '../types/breathing';
 import './BreathingTimer.css';
 
 export function BreathingTimer() {
   const {
-    currentPhase,
     phaseIndex,
     timeRemaining,
     isRunning,
     isMuted,
     difficulty,
     completedCycles,
+    totalSeconds,
     phaseProgress,
     cycleProgress,
     stepDuration,
@@ -119,14 +118,14 @@ export function BreathingTimer() {
                   '--delay': `${i * 0.15}s`,
                   '--angle': `${i * 45}deg`,
                   '--color': phaseColor,
-                }}
+                } as React.CSSProperties}
               />
             ))}
           </div>
         </div>
 
         {/* Center instruction text */}
-        <div className="center-instruction" aria-live="polite">
+        {/* <div className="center-instruction" aria-live="polite">
           {isRunning ? (
             <>
               <span className="instruction-text">
@@ -138,13 +137,17 @@ export function BreathingTimer() {
               <span className="instruction-text">Press Space or tap to start</span>
             </>
           )}
-        </div>
+        </div> */}
       </div>
 
-      {/* Cycle counter */}
+      {/* Cycle counter and total time */}
       <div className="cycle-counter" aria-label={`Completed cycles: ${completedCycles}`}>
         <span className="cycle-label">Cycles completed</span>
         <span className="cycle-count">{completedCycles}</span>
+      </div>
+      <div className="total-time" aria-label={`Total time: ${totalSeconds} seconds`}>
+        <span className="total-time-label">Total time</span>
+        <span className="total-time-count">{totalSeconds}s</span>
       </div>
 
       {/* Controls */}
