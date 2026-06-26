@@ -1,0 +1,86 @@
+# GitLab CI/CD configuration for PulseBox
+# Deploys to GitLab Pages when MR is merged to main branch
+
+stages:
+  - build
+  - deploy
+
+# Cache node_modules to speed up builds
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+  policy: pull-push
+
+# Build stage - runs on all branches and MRs
+build:
+  stage: build
+  image: node:20-alpine
+  before_script:
+    - npm ci --prefer-offline --no-audit --progress=false
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_COMMIT_BRANCH == "develop"
+
+# Deploy to GitLab Pages - only runs when merged to main
+pages:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - echo "Deploying to GitLab Pages..."
+    - ls -la dist/
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 year
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: on_success
+  environment:
+    name: production
+    url: https://$CI_PROJECT_ROOT_NAMESPACE.pages.$CI_PAGES_DOMAIN/$CI_PROJECT_NAME/
+
+# Optional: Deploy preview for merge requests
+pages:preview:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - job: build
+      artifacts: true
+  script:
+    - echo "Deploying preview for MR #$CI_MERGE_REQUEST_IID..."
+    - mkdir -p public
+    - cp -r dist/* public/
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    url: https://$CI_PROJECT_ROOT_NAMESPACE.pages.$CI_PAGES_DOMAIN/$CI_PROJECT_NAME/-/merge_requests/$CI_MERGE_REQUEST_IID/
+    on_stop: stop_preview
+
+# Stop preview environment when MR is closed
+stop_preview:
+  stage: deploy
+  image: alpine:latest
+  script:
+    - echo "Stopping preview environment for MR #$CI_MERGE_REQUEST_IID"
+  when: manual
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  environment:
+    name: preview/$CI_MERGE_REQUEST_IID
+    action: stop

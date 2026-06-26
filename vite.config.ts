@@ -3,7 +3,12 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
+// For GitLab Pages, set base to '/<project-name>/' when deploying to a project subpath
+// Use process.env.CI_PROJECT_NAME for dynamic project name in CI, fallback to '/' for local dev
+const base = process.env.CI_PROJECT_NAME ? `/${process.env.CI_PROJECT_NAME}/` : '/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     VitePWA({
@@ -17,8 +22,8 @@ export default defineConfig({
         background_color: '#1a1a2e',
         display: 'standalone',
         orientation: 'portrait-primary',
-        scope: '/',
-        start_url: '/',
+        scope: base,
+        start_url: base,
         icons: [
           {
             src: 'pwa-192x192.png',
