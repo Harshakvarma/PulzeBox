@@ -1,0 +1,81 @@
+# GitHub Actions workflow for deploying PulseBox to GitHub Pages
+# Triggers on push to main branch (after MR merge)
+#
+# IMPORTANT: In your GitHub repo settings, go to Settings > Pages > Build and deployment
+# and set "Source" to "GitHub Actions" (not "Deploy from a branch")
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+    # Only deploy when PR is merged (not just closed)
+    if: github.event.pull_request.merged == true
+
+# Allow only one concurrent deployment
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+# Set permissions for GITHUB_TOKEN
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  # Build job
+  build:
+    runs-on: ubuntu-latest
+    # Set GITHUB_REPOSITORY explicitly for Vite base path calculation
+    env:
+      GITHUB_REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --progress=false
+
+      - name: Build
+        run: npm run build
+        env:
+          # GitHub Pages serves from /<repo-name>/ for project pages
+          # GITHUB_REPOSITORY is automatically set by GitHub Actions (owner/repo)
+          # Vite config extracts repo name from it for base path
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Verify build output
+        run: |
+          echo "=== Built index.html ==="
+          head -30 dist/index.html
+          echo ""
+          echo "=== Built manifest.webmanifest ==="
+          cat dist/manifest.webmanifest
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  # Deploy job
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

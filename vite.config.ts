@@ -3,9 +3,23 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
-// For GitLab Pages, set base to '/<project-name>/' when deploying to a project subpath
-// Use process.env.CI_PROJECT_NAME for dynamic project name in CI, fallback to '/' for local dev
-const base = process.env.CI_PROJECT_NAME ? `/${process.env.CI_PROJECT_NAME}/` : '/'
+// For GitHub Pages project pages, base should be '/<repo-name>/'
+// GitHub Actions sets GITHUB_REPOSITORY env var (e.g., "user/repo")
+// For local dev and user/org pages (username.github.io), use '/'
+const getBase = () => {
+  if (process.env.GITHUB_REPOSITORY) {
+    // Extract repo name from "owner/repo"
+    const repoName = process.env.GITHUB_REPOSITORY.split('/')[1]
+    return `/${repoName}/`
+  }
+  // Check for BASE_PATH env var (set in GitHub Actions workflow)
+  if (process.env.BASE_PATH) {
+    return process.env.BASE_PATH
+  }
+  return '/'
+}
+
+const base = getBase()
 
 export default defineConfig({
   base,
